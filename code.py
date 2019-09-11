@@ -2,7 +2,7 @@
 """
 Created on Mon Aug 26 17:33:13 2019
 
-@author: BY20064109
+@author: Yaswanth
 """
 
 import os
@@ -15,6 +15,7 @@ from sklearn.model_selection import RandomizedSearchCV
 from sklearn.model_selection import StratifiedKFold
 from datetime import datetime
 from sklearn.metrics import f1_score, confusion_matrix
+from imblearn.over_sampling import ADASYN
 
 os.chdir("D:/New folder/Hackathon/Hiring hackathon")
 
@@ -126,6 +127,14 @@ X_train = df.drop('target', 1).iloc[0:116058]
 
 X_test = df.drop('target', 1).iloc[116058:151924]
 
+#the dataset is highly imbalanced
+#using ADASYN we will try to reduce the imbalance
+samp = ADASYN()
+X, Y = samp.fit_sample(X_train, Y_train)
+X = pd.DataFrame(X, columns = X_train.columns)
+Y = pd.DataFrame(Y, columns = ['target'])
+
+#model building
 param_grid = {'eta':[0.05, 0.1, 0.15], 
               'max_depth':[6,7,8],
               'gamma': [0.5, 1, 1.5],
@@ -134,20 +143,27 @@ param_grid = {'eta':[0.05, 0.1, 0.15],
 
 xgb_model = xgb.XGBClassifier(n_estimators = 500,objective='binary:logistic',metric='auc',scale_pos_weight=2)
 fold = StratifiedKFold(n_splits = 5, shuffle = True, random_state=2)
-rs_cv = RandomizedSearchCV(xgb_model, param_grid, cv = fold.split(X_train, Y_train))
+rs_cv = RandomizedSearchCV(xgb_model, param_grid, cv = fold.split(X, Y))
 
 st=datetime.now()
-rs_cv.fit(X_train, Y_train)
+rs_cv.fit(X, Y)
 #end=datetime.now()
 print("Time taken is:", datetime.now() - st)
 
 best_params = rs_cv.best_params_
+#rs_cv.best_score_ = 0.9976542717402616
+
 model_fit = xgb.XGBClassifier(params = best_params, n_estimators = 500,objective='binary:logistic',metric='auc',scale_pos_weight=2)
-xgb_model = model_fit.fit(X_train, Y_train)
+xgb_model = model_fit.fit(X, Y)
 
 #prediction on test dataset
 test_pred = xgb_model.predict(X_test)
-Y_test = test_pred.astype(int)
+#Y_test = test_pred.astype(int)
+
+submission = pd.DataFrame(X_test['loan_id'])
+submission['target'] = test_pred.astype(int)
+
+submission.to_csv("solution.csv", index = False)
 
 
 
